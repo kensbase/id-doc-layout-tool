@@ -55,7 +55,7 @@
     color:var(--ink-soft);
     letter-spacing:.04em;
   }
-  main{max-width:480px;margin:0 auto;padding:20px 16px;}
+  main{margin:0 auto;padding:20px 16px;}
   .slot{
     background:#fff;
     border:1px solid var(--ink);
@@ -139,7 +139,7 @@
   }
   .status.ok{color:var(--ok);}
   .preview-row{display:flex;gap:10px;margin-top:12px;align-items:flex-start;}
-  .preview-row img{width:120px;border:1px solid var(--ink);}
+  .preview-row img{border:1px solid var(--ink);max-width:100%;}
   .rotate-btns{margin-top:0;margin-bottom:2px;}
   .rotate-btns .action-btn{background:#fff;color:var(--ink);}
   .adjust-box{
@@ -169,7 +169,7 @@
   .adjust-box .gray-row input{width:auto;}
   .adjust-box .gray-row label{margin:0;}
   .footer-bar{
-    max-width:480px;margin:0 auto;padding:0 16px;
+    margin:0 auto;padding:0 16px;
   }
   .generate-box{
     border:2px solid var(--ink);
@@ -224,6 +224,22 @@ function showGlobalError(msg){
 </script>
 <script>
 const PX_PER_CM = 118.11; // ~300dpi
+function getDispMax(w){
+  if(w>=1000) return 640;
+  if(w>=640) return 480;
+  return 340;
+}
+let DISP_MAX = getDispMax(window.innerWidth);
+function updateContainerWidth(){
+  const w = (DISP_MAX + 140) + 'px';
+  document.getElementById('main').style.maxWidth = w;
+  const fb = document.querySelector('.footer-bar');
+  if(fb) fb.style.maxWidth = w;
+}
+window.addEventListener('resize', ()=>{
+  DISP_MAX = getDispMax(window.innerWidth);
+  updateContainerWidth();
+});
 const SLOTS = [
   {key:'front', label:'身分證正面', wCm:8, hCm:4.8},
   {key:'back',  label:'身分證背面', wCm:8, hCm:4.8},
@@ -349,6 +365,7 @@ SLOTS.forEach(cfg=>{
   `;
   main.appendChild(slot);
 });
+updateContainerWidth();
 
 // 事件委派：即使個別綁定失效，document 層級也能接到 change
 document.addEventListener('change', function(e){
@@ -465,7 +482,7 @@ function onFile(key, file){
 
 function initDisplay(key){
   const s = state[key];
-  const dispW = Math.min(340, s.natCanvas.width);
+  const dispW = Math.min(DISP_MAX, s.natCanvas.width);
   const dispH = dispW * s.natCanvas.height / s.natCanvas.width;
   const scale = s.natCanvas.width / dispW;
   const inset = 0.1;
@@ -479,6 +496,8 @@ function initDisplay(key){
 
   const canvas = document.getElementById('canvas-'+key);
   canvas.width = dispW; canvas.height = dispH;
+  canvas.style.width = dispW + 'px';
+  canvas.style.maxWidth = '100%';
   canvas.style.aspectRatio = (dispW/dispH);
 
   if(!canvas.dataset.dragSetup){
@@ -609,21 +628,47 @@ function doCorrect(key){
   }, 30);
 }
 
+function clamp255(v){ return v<0?0:v>255?255:v; }
+
 function applyAdjust(key){
   const s = state[key];
   if(!s || !s.corrected) return;
   const {brightness, contrast, gray} = s.adjust;
+  const base = s.corrected;
+  const w = base.width, h = base.height;
+  const srcCtx = base.getContext('2d');
+  const src = srcCtx.getImageData(0,0,w,h);
+  const sd = src.data;
+
   const out = document.createElement('canvas');
-  out.width = s.corrected.width;
-  out.height = s.corrected.height;
-  const ctx = out.getContext('2d');
-  const b = 1 + brightness/100;
-  const c = 1 + contrast/100;
-  ctx.filter = `brightness(${b}) contrast(${c}) grayscale(${gray?1:0})`;
-  ctx.drawImage(s.corrected, 0, 0);
-  ctx.filter = 'none';
+  out.width = w; out.height = h;
+  const octx = out.getContext('2d');
+  const dst = octx.createImageData(w,h);
+  const dd = dst.data;
+
+  const brightAdd = brightness * 1.3;      // 滑桿 -100..100 -> 約 -130..130 加減
+  const c255 = contrast * 2.55;            // 滑桿 -100..100 -> -255..255
+  const factor = (259*(c255+255)) / (255*(259-c255));
+
+  for(let i=0;i<sd.length;i+=4){
+    let r=sd[i], g=sd[i+1], b=sd[i+2];
+    r+=brightAdd; g+=brightAdd; b+=brightAdd;
+    r = factor*(r-128)+128;
+    g = factor*(g-128)+128;
+    b = factor*(b-128)+128;
+    if(gray){
+      const l = 0.299*r + 0.587*g + 0.114*b;
+      r=g=b=l;
+    }
+    dd[i]=clamp255(r); dd[i+1]=clamp255(g); dd[i+2]=clamp255(b); dd[i+3]=sd[i+3];
+  }
+  octx.putImageData(dst,0,0);
   s.final = out;
-  document.getElementById('img-'+key).src = out.toDataURL('image/jpeg', 0.92);
+
+  const previewImg = document.getElementById('img-'+key);
+  previewImg.src = out.toDataURL('image/jpeg', 0.92);
+  previewImg.style.width = s.dispW + 'px';
+  previewImg.style.maxWidth = '100%';
 }
 
 function resetAdjust(key){
