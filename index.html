@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>證件排版輸出工具</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --paper:#F1EDE3;
+    --paper-line:#DAD3C1;
+    --ink:#22314F;
+    --ink-soft:#5A6478;
+    --red:#C0392B;
+    --ok:#3B7A57;
+    --gray:#8B8577;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      linear-gradient(var(--paper-line) 1px, transparent 1px) 0 0/100% 28px,
+      var(--paper);
+    color:var(--ink);
+    font-family:'Noto Sans TC', sans-serif;
+    padding:0 0 60px;
+  }
+  header{
+    padding:28px 20px 18px;
+    border-bottom:2px solid var(--ink);
+    position:relative;
+  }
+  header::before, header::after{
+    content:"+";
+    position:absolute;
+    top:10px;
+    color:var(--red);
+    font-family:'JetBrains Mono',monospace;
+    font-size:14px;
+  }
+  header::before{left:8px;}
+  header::after{right:8px;}
+  h1{
+    font-family:'Noto Serif TC', serif;
+    font-weight:700;
+    font-size:22px;
+    margin:0 0 4px;
+    letter-spacing:.02em;
+  }
+  .sub{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    letter-spacing:.04em;
+  }
+  main{max-width:480px;margin:0 auto;padding:20px 16px;}
+  .slot{
+    background:#fff;
+    border:1px solid var(--ink);
+    margin-bottom:22px;
+    position:relative;
+  }
+  .slot::before,.slot::after,.slot .cA,.slot .cB{
+    content:"";
+    position:absolute;
+    width:10px;height:10px;
+    border-color:var(--red);
+    border-style:solid;
+  }
+  .slot::before{top:-1px;left:-1px;border-width:2px 0 0 2px;}
+  .slot::after{top:-1px;right:-1px;border-width:2px 2px 0 0;}
+  .slot .cA{bottom:-1px;left:-1px;border-width:0 0 2px 2px;}
+  .slot .cB{bottom:-1px;right:-1px;border-width:0 2px 2px 0;}
+  .slot-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    padding:12px 14px 8px;
+    border-bottom:1px dashed var(--paper-line);
+  }
+  .slot-title{font-family:'Noto Serif TC',serif;font-weight:700;font-size:15px;}
+  .slot-dim{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--red);}
+  .slot-body{padding:14px;}
+  .upload-btn{
+    display:inline-block;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    padding:8px 14px;
+    border:1px solid var(--ink);
+    background:var(--paper);
+    cursor:pointer;
+    user-select:none;
+  }
+  .upload-btn:active{background:var(--ink);color:#fff;}
+  input[type=file]{
+    position:absolute;
+    width:1px;height:1px;
+    opacity:0;
+    overflow:hidden;
+    clip:rect(0 0 0 0);
+  }
+  .upload-btn{position:relative;}
+  .canvas-wrap{
+    margin-top:12px;
+    display:none;
+    touch-action:none;
+  }
+  .canvas-wrap canvas{
+    width:100%;
+    display:block;
+    border:1px solid var(--paper-line);
+    background:#eee;
+    touch-action:none;
+  }
+  .hint{
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-top:6px;
+    line-height:1.5;
+  }
+  .row-btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .action-btn{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    padding:8px 14px;
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:#fff;
+    cursor:pointer;
+  }
+  .action-btn.secondary{background:#fff;color:var(--ink);}
+  .action-btn:disabled{opacity:.35;cursor:not-allowed;}
+  .status{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    margin-top:8px;
+  }
+  .status.ok{color:var(--ok);}
+  .preview-row{display:flex;gap:10px;margin-top:12px;align-items:flex-start;}
+  .preview-row img{width:120px;border:1px solid var(--ink);}
+  .rotate-btns{margin-top:0;margin-bottom:2px;}
+  .rotate-btns .action-btn{background:#fff;color:var(--ink);}
+  .adjust-box{
+    margin-top:14px;
+    padding:12px;
+    border:1px dashed var(--paper-line);
+    background:var(--paper);
+  }
+  .adjust-box label{
+    display:block;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    margin-bottom:8px;
+  }
+  .adjust-box input[type=range]{
+    width:100%;
+    vertical-align:middle;
+    margin-top:4px;
+  }
+  .adjust-box .gray-row{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    margin-bottom:10px;
+  }
+  .adjust-box .gray-row input{width:auto;}
+  .adjust-box .gray-row label{margin:0;}
+  .footer-bar{
+    max-width:480px;margin:0 auto;padding:0 16px;
+  }
+  .generate-box{
+    border:2px solid var(--ink);
+    padding:16px;
+    background:#fff;
+    text-align:center;
+  }
+  .generate-box .action-btn{
+    width:100%;
+    padding:14px;
+    font-size:14px;
+    letter-spacing:.05em;
+  }
+  #pdfStatus{margin-top:10px;font-size:12px;}
+  a.dl-link{color:var(--red);text-decoration:underline;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>證件排版輸出工具</h1>
+  <div class="sub">ID DOCUMENT LAYOUT · MANUAL CROP + PERSPECTIVE CORRECTION · A4 OUTPUT</div>
+</header>
+
+<main id="main"></main>
+
+<div class="footer-bar">
+  <div class="generate-box">
+    <div class="slot-dim" style="margin-bottom:10px;">A4 · 21.0 × 29.7 cm</div>
+    <button class="action-btn" id="genPdfBtn">產生 A4 PDF</button>
+    <div id="pdfStatus"></div>
+  </div>
+</div>
+
+<script>
+window.addEventListener('error', function(e){
+  showGlobalError((e && e.message) ? e.message : String(e));
+});
+window.addEventListener('unhandledrejection', function(e){
+  showGlobalError('Promise錯誤：' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+});
+function showGlobalError(msg){
+  let box = document.getElementById('globalErrorBox');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'globalErrorBox';
+    box.style.cssText = 'position:sticky;top:0;z-index:999;background:#C0392B;color:#fff;padding:10px 14px;font-family:monospace;font-size:12px;word-break:break-all;';
+    document.body.prepend(box);
+  }
+  box.textContent = '發生錯誤：' + msg + '（請截圖回報）';
+}
+</script>
+<script>
+const PX_PER_CM = 118.11; // ~300dpi
+const SLOTS = [
+  {key:'front', label:'身分證正面', wCm:8, hCm:4.8},
+  {key:'back',  label:'身分證背面', wCm:8, hCm:4.8},
+  {key:'passport', label:'護照內頁', wCm:12.5, hCm:8.8},
+];
+
+const state = {}; // key -> {img, natCanvas, natW, natH, points(display coords), scale, corrected(canvas), dispW, dispH}
+
+// ---------- 線性代數：透視變換 ----------
+function solveLinearSystem(A, B){
+  const n = A.length;
+  const M = A.map((row,i)=> row.concat([B[i]]));
+  for(let col=0; col<n; col++){
+    let pivot = col;
+    for(let r=col+1;r<n;r++){ if(Math.abs(M[r][col])>Math.abs(M[pivot][col])) pivot=r; }
+    [M[col],M[pivot]]=[M[pivot],M[col]];
+    const pv = M[col][col] || 1e-12;
+    for(let c=col;c<=n;c++) M[col][c]/=pv;
+    for(let r=0;r<n;r++){
+      if(r===col) continue;
+      const f = M[r][col];
+      if(f===0) continue;
+      for(let c=col;c<=n;c++) M[r][c]-=f*M[col][c];
+    }
+  }
+  return M.map(row=>row[n]);
+}
+function getPerspectiveTransform(from, to){
+  const A=[], B=[];
+  for(let i=0;i<4;i++){
+    const [x,y]=from[i], [X,Y]=to[i];
+    A.push([x,y,1,0,0,0,-x*X,-y*X]); B.push(X);
+    A.push([0,0,0,x,y,1,-x*Y,-y*Y]); B.push(Y);
+  }
+  const h = solveLinearSystem(A,B);
+  return [h[0],h[1],h[2],h[3],h[4],h[5],h[6],h[7],1];
+}
+function bilinear(data,w,h,u,v){
+  u = Math.min(Math.max(u,0), w-1.001);
+  v = Math.min(Math.max(v,0), h-1.001);
+  const x0=Math.floor(u), y0=Math.floor(v), x1=x0+1, y1=y0+1;
+  const dx=u-x0, dy=v-y0;
+  const idx=(x,y)=>(y*w+x)*4;
+  const out=[0,0,0,0];
+  const i00=idx(x0,y0), i10=idx(x1,y0), i01=idx(x0,y1), i11=idx(x1,y1);
+  for(let c=0;c<4;c++){
+    const top = data[i00+c]*(1-dx)+data[i10+c]*dx;
+    const bot = data[i01+c]*(1-dx)+data[i11+c]*dx;
+    out[c] = top*(1-dy)+bot*dy;
+  }
+  return out;
+}
+function warpImage(srcCanvas, quadNatural, outW, outH){
+  const sctx = srcCanvas.getContext('2d');
+  const sImg = sctx.getImageData(0,0,srcCanvas.width, srcCanvas.height);
+  const sw = srcCanvas.width, sh = srcCanvas.height;
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width=outW; outCanvas.height=outH;
+  const octx = outCanvas.getContext('2d');
+  const outImg = octx.createImageData(outW,outH);
+  const rect = [[0,0],[outW,0],[outW,outH],[0,outH]];
+  const H = getPerspectiveTransform(rect, quadNatural);
+  const d = outImg.data;
+  for(let y=0;y<outH;y++){
+    for(let x=0;x<outW;x++){
+      const w = H[6]*x+H[7]*y+H[8];
+      const u = (H[0]*x+H[1]*y+H[2])/w;
+      const v = (H[3]*x+H[4]*y+H[5])/w;
+      const px = bilinear(sImg.data, sw, sh, u, v);
+      const i=(y*outW+x)*4;
+      d[i]=px[0]; d[i+1]=px[1]; d[i+2]=px[2]; d[i+3]=255;
+    }
+  }
+  octx.putImageData(outImg,0,0);
+  return outCanvas;
+}
+
+// ---------- 建立 UI ----------
+const main = document.getElementById('main');
+SLOTS.forEach(cfg=>{
+  const slot = document.createElement('div');
+  slot.className='slot';
+  slot.innerHTML = `
+    <div class="cA"></div><div class="cB"></div>
+    <div class="slot-head">
+      <div class="slot-title">${cfg.label}</div>
+      <div class="slot-dim">${cfg.wCm.toFixed(1)} × ${cfg.hCm.toFixed(1)} cm</div>
+    </div>
+    <div class="slot-body">
+      <label class="upload-btn">選擇照片
+        <input type="file" accept="image/*" data-key="${cfg.key}" class="fileInput">
+      </label>
+      <div class="hint">上傳後，拖曳四個紅點對齊證件的四個角，再按「校正」。</div>
+      <div class="canvas-wrap" id="wrap-${cfg.key}">
+        <div class="row-btns rotate-btns">
+          <button class="action-btn secondary" data-action="rotateL" data-key="${cfg.key}">↺ 左轉90°</button>
+          <button class="action-btn secondary" data-action="rotateR" data-key="${cfg.key}">↻ 右轉90°</button>
+        </div>
+        <canvas id="canvas-${cfg.key}"></canvas>
+        <div class="row-btns">
+          <button class="action-btn" data-action="correct" data-key="${cfg.key}">校正</button>
+          <button class="action-btn secondary" data-action="redo" data-key="${cfg.key}">重新選取角點</button>
+        </div>
+        <div class="status" id="status-${cfg.key}"></div>
+        <div class="preview-row" id="preview-${cfg.key}" style="display:none;">
+          <img id="img-${cfg.key}">
+        </div>
+        <div class="adjust-box" id="adjust-${cfg.key}" style="display:none;">
+          <label>亮度 <span id="brVal-${cfg.key}">0</span>
+            <input type="range" min="-100" max="100" value="0" data-key="${cfg.key}" data-adj="brightness">
+          </label>
+          <label>對比 / 曝光 <span id="ctVal-${cfg.key}">0</span>
+            <input type="range" min="-100" max="100" value="0" data-key="${cfg.key}" data-adj="contrast">
+          </label>
+          <div class="gray-row">
+            <input type="checkbox" id="gray-${cfg.key}" data-key="${cfg.key}" data-adj="gray">
+            <label for="gray-${cfg.key}">灰階</label>
+          </div>
+          <button class="action-btn secondary" data-action="resetAdjust" data-key="${cfg.key}">重設調整</button>
+        </div>
+      </div>
+    </div>
+  `;
+  main.appendChild(slot);
+});
+
+// 事件委派：即使個別綁定失效，document 層級也能接到 change
+document.addEventListener('change', function(e){
+  const t = e.target;
+  if(t && t.classList && t.classList.contains('fileInput')){
+    onFile(t.dataset.key, t.files && t.files[0]);
+    t.value = ''; // 允許重選同一張照片
+  }
+});
+document.querySelectorAll('[data-action="correct"]').forEach(btn=>{
+  btn.addEventListener('click', ()=>doCorrect(btn.dataset.key));
+});
+document.querySelectorAll('[data-action="redo"]').forEach(btn=>{
+  btn.addEventListener('click', ()=>redo(btn.dataset.key));
+});
+document.querySelectorAll('[data-action="rotateL"]').forEach(btn=>{
+  btn.addEventListener('click', ()=>rotateImage(btn.dataset.key, -1));
+});
+document.querySelectorAll('[data-action="rotateR"]').forEach(btn=>{
+  btn.addEventListener('click', ()=>rotateImage(btn.dataset.key, 1));
+});
+document.querySelectorAll('[data-action="resetAdjust"]').forEach(btn=>{
+  btn.addEventListener('click', ()=>resetAdjust(btn.dataset.key));
+});
+document.querySelectorAll('[data-adj]').forEach(el=>{
+  const evt = el.type === 'checkbox' ? 'change' : 'input';
+  el.addEventListener(evt, ()=>{
+    const key = el.dataset.key;
+    const s = state[key];
+    if(!s) return;
+    if(el.dataset.adj==='brightness'){
+      s.adjust.brightness = parseInt(el.value,10);
+      document.getElementById('brVal-'+key).textContent = el.value;
+    } else if(el.dataset.adj==='contrast'){
+      s.adjust.contrast = parseInt(el.value,10);
+      document.getElementById('ctVal-'+key).textContent = el.value;
+    } else if(el.dataset.adj==='gray'){
+      s.adjust.gray = el.checked;
+    }
+    applyAdjust(key);
+  });
+});
+document.getElementById('genPdfBtn').addEventListener('click', generatePdf);
+
+function onFile(key, file){
+  if(!file) return;
+  const cfg = SLOTS.find(s=>s.key===key);
+  const statusEl = document.getElementById('status-'+key);
+
+  // 立即顯示已選擇的檔案，確認事件有觸發
+  const sizeKB = Math.round(file.size/1024);
+  statusEl.textContent = `已選擇：${file.name || '照片'}（${sizeKB}KB）讀取中…`;
+  statusEl.className='status';
+
+  // 偵測 iPhone 預設的 HEIC/HEIF 格式，多數瀏覽器無法解碼
+  const nameLower = (file.name||'').toLowerCase();
+  const isHeic = file.type === 'image/heic' || file.type === 'image/heif'
+              || nameLower.endsWith('.heic') || nameLower.endsWith('.heif');
+  if(isHeic){
+    statusEl.textContent = '此照片為 HEIC 格式，多數瀏覽器無法讀取。請至 iPhone「設定 → 相機 → 格式」改為「最相容」，或改用 JPG/PNG 照片再上傳。';
+    statusEl.style.color = '#C0392B';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onerror = ()=>{
+    statusEl.textContent = '讀取失敗，請重新選擇照片';
+    statusEl.style.color = '#C0392B';
+  };
+  reader.onload = (evt)=>{
+    const url = evt.target.result;
+    const img = new Image();
+    img.onerror = ()=>{
+      statusEl.textContent = '圖片載入失敗（可能是不支援的格式），請換一張 JPG/PNG 照片再試';
+      statusEl.style.color = '#C0392B';
+    };
+    img.onload = ()=>{
+    try{
+    // 大圖先縮小：避免手機瀏覽器 canvas 像素上限造成靜默失敗（iPhone 高畫素照片常見）
+    const MAX_SIDE = 2400;
+    let natW = img.naturalWidth, natH = img.naturalHeight;
+    if(!natW || !natH){ throw new Error('無法讀取圖片尺寸'); }
+    const ratio = Math.min(1, MAX_SIDE / Math.max(natW, natH));
+    natW = Math.round(natW * ratio);
+    natH = Math.round(natH * ratio);
+    const natCanvas = document.createElement('canvas');
+    natCanvas.width = natW;
+    natCanvas.height = natH;
+    natCanvas.getContext('2d').drawImage(img, 0, 0, natW, natH);
+
+    state[key] = {
+      natCanvas, dispW:0, dispH:0, scale:1, points:[],
+      corrected:null, final:null, cfg,
+      adjust:{brightness:0, contrast:0, gray:false}
+    };
+
+    const wrap = document.getElementById('wrap-'+key);
+    wrap.style.display='block';
+    document.getElementById('preview-'+key).style.display='none';
+    document.getElementById('adjust-'+key).style.display='none';
+    document.getElementById('status-'+key).textContent='';
+    document.getElementById('status-'+key).className='status';
+
+    initDisplay(key);
+    }catch(err){
+      statusEl.textContent = '處理照片時發生錯誤：' + (err && err.message ? err.message : err);
+      statusEl.style.color = '#C0392B';
+    }
+    };
+    img.src = url;
+  };
+  reader.readAsDataURL(file);
+}
+
+function initDisplay(key){
+  const s = state[key];
+  const dispW = Math.min(340, s.natCanvas.width);
+  const dispH = dispW * s.natCanvas.height / s.natCanvas.width;
+  const scale = s.natCanvas.width / dispW;
+  const inset = 0.1;
+  const points = [
+    {x: dispW*inset,     y: dispH*inset},
+    {x: dispW*(1-inset), y: dispH*inset},
+    {x: dispW*(1-inset), y: dispH*(1-inset)},
+    {x: dispW*inset,     y: dispH*(1-inset)},
+  ];
+  s.dispW=dispW; s.dispH=dispH; s.scale=scale; s.points=points;
+
+  const canvas = document.getElementById('canvas-'+key);
+  canvas.width = dispW; canvas.height = dispH;
+  canvas.style.aspectRatio = (dispW/dispH);
+
+  if(!canvas.dataset.dragSetup){
+    setupDrag(key, canvas);
+    canvas.dataset.dragSetup = '1';
+  }
+  drawOverlay(key);
+}
+
+function rotateImage(key, dir){
+  const s = state[key];
+  if(!s) return;
+  const src = s.natCanvas;
+  const rotated = document.createElement('canvas');
+  rotated.width = src.height;
+  rotated.height = src.width;
+  const rctx = rotated.getContext('2d');
+  if(dir===1){ // 順時針 90°
+    rctx.translate(rotated.width, 0);
+    rctx.rotate(Math.PI/2);
+  } else { // 逆時針 90°
+    rctx.translate(0, rotated.height);
+    rctx.rotate(-Math.PI/2);
+  }
+  rctx.drawImage(src, 0, 0);
+  s.natCanvas = rotated;
+  s.corrected = null;
+  s.final = null;
+  s.adjust = {brightness:0, contrast:0, gray:false};
+
+  document.getElementById('preview-'+key).style.display='none';
+  document.getElementById('adjust-'+key).style.display='none';
+  document.getElementById('status-'+key).textContent='';
+  document.getElementById('status-'+key).className='status';
+
+  initDisplay(key);
+}
+
+function drawOverlay(key){
+  const s = state[key];
+  const canvas = document.getElementById('canvas-'+key);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(s.natCanvas, 0,0, s.dispW, s.dispH);
+  const p = s.points;
+  ctx.strokeStyle = '#C0392B';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(p[0].x,p[0].y);
+  for(let i=1;i<4;i++) ctx.lineTo(p[i].x,p[i].y);
+  ctx.closePath();
+  ctx.stroke();
+  p.forEach((pt,i)=>{
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 9, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(192,57,43,0.25)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 4, 0, Math.PI*2);
+    ctx.fillStyle = '#C0392B';
+    ctx.fill();
+  });
+}
+
+function setupDrag(key, canvas){
+  let active = -1;
+  const getPos = (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const cx = (e.touches? e.touches[0].clientX : e.clientX) - rect.left;
+    const cy = (e.touches? e.touches[0].clientY : e.clientY) - rect.top;
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {x: cx*scaleX, y: cy*scaleY};
+  };
+  const down = (e)=>{
+    const pos = getPos(e);
+    const s = state[key];
+    let best=-1, bestD=22;
+    s.points.forEach((pt,i)=>{
+      const d = Math.hypot(pt.x-pos.x, pt.y-pos.y);
+      if(d<bestD){bestD=d; best=i;}
+    });
+    if(best>=0){ active=best; e.preventDefault(); }
+  };
+  const move = (e)=>{
+    if(active<0) return;
+    e.preventDefault();
+    const pos = getPos(e);
+    const s = state[key];
+    pos.x = Math.min(Math.max(pos.x,0), s.dispW);
+    pos.y = Math.min(Math.max(pos.y,0), s.dispH);
+    s.points[active]=pos;
+    drawOverlay(key);
+  };
+  const up = ()=>{ active=-1; };
+  canvas.addEventListener('mousedown', down);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+  canvas.addEventListener('touchstart', down, {passive:false});
+  canvas.addEventListener('touchmove', move, {passive:false});
+  canvas.addEventListener('touchend', up);
+}
+
+function doCorrect(key){
+  const s = state[key];
+  const cfg = s.cfg;
+  const quadNatural = s.points.map(p=>[p.x*s.scale, p.y*s.scale]);
+  const outW = Math.round(cfg.wCm * PX_PER_CM);
+  const outH = Math.round(cfg.hCm * PX_PER_CM);
+  const statusEl = document.getElementById('status-'+key);
+  statusEl.textContent = '校正中…';
+  statusEl.className='status';
+  setTimeout(()=>{
+    const corrected = warpImage(s.natCanvas, quadNatural, outW, outH);
+    s.corrected = corrected;
+    s.adjust = {brightness:0, contrast:0, gray:false};
+    document.querySelector(`input[data-key="${key}"][data-adj="brightness"]`).value = 0;
+    document.querySelector(`input[data-key="${key}"][data-adj="contrast"]`).value = 0;
+    document.getElementById('brVal-'+key).textContent = '0';
+    document.getElementById('ctVal-'+key).textContent = '0';
+    document.getElementById('gray-'+key).checked = false;
+
+    document.getElementById('preview-'+key).style.display='flex';
+    document.getElementById('adjust-'+key).style.display='block';
+    applyAdjust(key);
+    statusEl.textContent = '✓ 已校正完成，可調整亮度/對比/灰階後產生 PDF';
+    statusEl.className='status ok';
+  }, 30);
+}
+
+function applyAdjust(key){
+  const s = state[key];
+  if(!s || !s.corrected) return;
+  const {brightness, contrast, gray} = s.adjust;
+  const out = document.createElement('canvas');
+  out.width = s.corrected.width;
+  out.height = s.corrected.height;
+  const ctx = out.getContext('2d');
+  const b = 1 + brightness/100;
+  const c = 1 + contrast/100;
+  ctx.filter = `brightness(${b}) contrast(${c}) grayscale(${gray?1:0})`;
+  ctx.drawImage(s.corrected, 0, 0);
+  ctx.filter = 'none';
+  s.final = out;
+  document.getElementById('img-'+key).src = out.toDataURL('image/jpeg', 0.92);
+}
+
+function resetAdjust(key){
+  const s = state[key];
+  if(!s) return;
+  s.adjust = {brightness:0, contrast:0, gray:false};
+  document.querySelector(`input[data-key="${key}"][data-adj="brightness"]`).value = 0;
+  document.querySelector(`input[data-key="${key}"][data-adj="contrast"]`).value = 0;
+  document.getElementById('brVal-'+key).textContent = '0';
+  document.getElementById('ctVal-'+key).textContent = '0';
+  document.getElementById('gray-'+key).checked = false;
+  applyAdjust(key);
+}
+
+function redo(key){
+  const s = state[key];
+  if(!s) return;
+  s.corrected = null;
+  s.final = null;
+  document.getElementById('preview-'+key).style.display='none';
+  document.getElementById('adjust-'+key).style.display='none';
+  document.getElementById('status-'+key).textContent='';
+  document.getElementById('status-'+key).className='status';
+}
+
+function generatePdf(){
+  const statusEl = document.getElementById('pdfStatus');
+  const ready = SLOTS.filter(cfg => state[cfg.key] && state[cfg.key].corrected);
+  if(ready.length===0){
+    statusEl.textContent = '請至少完成一張證件的校正';
+    statusEl.style.color = '#C0392B';
+    return;
+  }
+  const A4_W = Math.round(21 * PX_PER_CM);
+  const A4_H = Math.round(29.7 * PX_PER_CM);
+  const page = document.createElement('canvas');
+  page.width = A4_W; page.height = A4_H;
+  const ctx = page.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0,0,A4_W,A4_H);
+
+  const margin = Math.round(1 * PX_PER_CM);
+  const gap = Math.round(0.5 * PX_PER_CM);
+
+  const front = state['front'], back = state['back'], passport = state['passport'];
+  const idW = Math.round(8*PX_PER_CM), idH = Math.round(4.8*PX_PER_CM);
+  const ppW = Math.round(12.5*PX_PER_CM), ppH = Math.round(8.8*PX_PER_CM);
+
+  ctx.font = '28px sans-serif';
+  ctx.fillStyle = '#888';
+
+  if(front && front.corrected){
+    ctx.drawImage(front.final || front.corrected, margin, margin, idW, idH);
+    ctx.fillText('身分證正面', margin, margin+idH+34);
+  }
+  if(back && back.corrected){
+    const x = margin+idW+gap;
+    ctx.drawImage(back.final || back.corrected, x, margin, idW, idH);
+    ctx.fillText('身分證背面', x, margin+idH+34);
+  }
+  if(passport && passport.corrected){
+    const y = margin+idH+90;
+    const x = Math.round((A4_W-ppW)/2);
+    ctx.drawImage(passport.final || passport.corrected, x, y, ppW, ppH);
+    ctx.fillText('護照內頁', x, y+ppH+34);
+  }
+
+  const dataUrl = page.toDataURL('image/jpeg', 0.95);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'cm', format:'a4'});
+  doc.addImage(dataUrl, 'JPEG', 0, 0, 21, 29.7);
+  const blob = doc.output('blob');
+  const url = URL.createObjectURL(blob);
+
+  statusEl.innerHTML = `✓ PDF 已產生 — <a class="dl-link" href="${url}" download="證件排版.pdf">點此下載</a>`;
+  statusEl.style.color = '#3B7A57';
+}
+</script>
+</body>
+</html>
