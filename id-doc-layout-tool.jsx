@@ -506,8 +506,8 @@ export default function App() {
                 關閉
               </button>
             </div>
-            <div style={{ overflow: "auto", padding: 16, background: "#F1EDE3", display: "flex", justifyContent: "center" }}>
-              <img src={previewUrl} alt="A4 排版預覽" style={{ maxWidth: "100%", height: "auto", boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }} />
+            <div style={{ overflow: "auto", padding: 16, background: "#F1EDE3", display: "flex", justifyContent: "center", alignItems: "center" }}>
+              <img src={previewUrl} alt="A4 排版預覽" style={{ maxWidth: "100%", maxHeight: "calc(90vh - 90px)", width: "auto", height: "auto", objectFit: "contain", boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }} />
             </div>
           </div>
         </div>
