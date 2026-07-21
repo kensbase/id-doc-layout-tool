@@ -185,6 +185,45 @@
   }
   #pdfStatus{margin-top:10px;font-size:12px;}
   a.dl-link{color:var(--red);text-decoration:underline;}
+
+  .preview-overlay{
+    display:none;
+    position:fixed; inset:0;
+    background:rgba(34,49,79,0.85);
+    z-index:1000;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .preview-modal{
+    background:#fff;
+    max-width:min(700px, 92vw);
+    max-height:90vh;
+    display:flex;
+    flex-direction:column;
+    border:2px solid var(--ink);
+  }
+  .preview-modal-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:12px 16px;
+    border-bottom:1px solid var(--paper-line);
+    font-family:'Noto Serif TC',serif;
+    font-weight:700;
+  }
+  .preview-modal-body{
+    overflow:auto;
+    padding:16px;
+    background:var(--paper);
+    display:flex;
+    justify-content:center;
+  }
+  .preview-modal-body img{
+    max-width:100%;
+    height:auto;
+    box-shadow:0 2px 10px rgba(0,0,0,0.2);
+  }
 </style>
 </head>
 <body>
@@ -199,8 +238,23 @@
 <div class="footer-bar">
   <div class="generate-box">
     <div class="slot-dim" style="margin-bottom:10px;">A4 · 21.0 × 29.7 cm</div>
-    <button class="action-btn" id="genPdfBtn">產生 A4 PDF</button>
+    <div style="display:flex;gap:8px;">
+      <button class="action-btn secondary" id="previewBtn" style="flex:1;">預覽排版</button>
+      <button class="action-btn" id="genPdfBtn" style="flex:1;">產生 A4 PDF</button>
+    </div>
     <div id="pdfStatus"></div>
+  </div>
+</div>
+
+<div id="previewOverlay" class="preview-overlay">
+  <div class="preview-modal">
+    <div class="preview-modal-head">
+      <span>A4 排版預覽</span>
+      <button class="action-btn secondary" id="closePreviewBtn">關閉</button>
+    </div>
+    <div class="preview-modal-body">
+      <img id="previewImg" alt="A4 排版預覽">
+    </div>
   </div>
 </div>
 
@@ -409,6 +463,11 @@ document.querySelectorAll('[data-adj]').forEach(el=>{
   });
 });
 document.getElementById('genPdfBtn').addEventListener('click', generatePdf);
+document.getElementById('previewBtn').addEventListener('click', showPreview);
+document.getElementById('closePreviewBtn').addEventListener('click', closePreview);
+document.getElementById('previewOverlay').addEventListener('click', function(e){
+  if(e.target.id === 'previewOverlay') closePreview();
+});
 
 function onFile(key, file){
   if(!file) return;
@@ -694,14 +753,10 @@ function redo(key){
   document.getElementById('status-'+key).className='status';
 }
 
-function generatePdf(){
-  const statusEl = document.getElementById('pdfStatus');
+function buildA4Canvas(){
   const ready = SLOTS.filter(cfg => state[cfg.key] && state[cfg.key].corrected);
-  if(ready.length===0){
-    statusEl.textContent = '請至少完成一張證件的校正';
-    statusEl.style.color = '#C0392B';
-    return;
-  }
+  if(ready.length===0) return null;
+
   const A4_W = Math.round(21 * PX_PER_CM);
   const A4_H = Math.round(29.7 * PX_PER_CM);
   const page = document.createElement('canvas');
@@ -734,6 +789,36 @@ function generatePdf(){
     const x = Math.round((A4_W-ppW)/2);
     ctx.drawImage(passport.final || passport.corrected, x, y, ppW, ppH);
     ctx.fillText('護照內頁', x, y+ppH+34);
+  }
+  return page;
+}
+
+function showPreview(){
+  const statusEl = document.getElementById('pdfStatus');
+  const page = buildA4Canvas();
+  if(!page){
+    statusEl.textContent = '請至少完成一張證件的校正';
+    statusEl.style.color = '#C0392B';
+    return;
+  }
+  statusEl.textContent = '';
+  const overlay = document.getElementById('previewOverlay');
+  const img = document.getElementById('previewImg');
+  img.src = page.toDataURL('image/jpeg', 0.9);
+  overlay.style.display = 'flex';
+}
+
+function closePreview(){
+  document.getElementById('previewOverlay').style.display = 'none';
+}
+
+function generatePdf(){
+  const statusEl = document.getElementById('pdfStatus');
+  const page = buildA4Canvas();
+  if(!page){
+    statusEl.textContent = '請至少完成一張證件的校正';
+    statusEl.style.color = '#C0392B';
+    return;
   }
 
   const dataUrl = page.toDataURL('image/jpeg', 0.95);
