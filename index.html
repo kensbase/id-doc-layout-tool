@@ -218,10 +218,14 @@
     background:var(--paper);
     display:flex;
     justify-content:center;
+    align-items:center;
   }
   .preview-modal-body img{
     max-width:100%;
+    max-height:calc(90vh - 90px);
+    width:auto;
     height:auto;
+    object-fit:contain;
     box-shadow:0 2px 10px rgba(0,0,0,0.2);
   }
 </style>
