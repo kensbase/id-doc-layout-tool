@@ -371,10 +371,43 @@ function getDispMax(width) {
   return 340;
 }
 
+function buildA4Canvas(slots) {
+  const ready = SLOTS.filter((c) => slots[c.key]?.corrected);
+  if (ready.length === 0) return null;
+
+  const A4_W = Math.round(21 * PX_PER_CM), A4_H = Math.round(29.7 * PX_PER_CM);
+  const page = document.createElement("canvas");
+  page.width = A4_W; page.height = A4_H;
+  const ctx = page.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, A4_W, A4_H);
+  const margin = Math.round(1 * PX_PER_CM), gap = Math.round(0.5 * PX_PER_CM);
+  const idW = Math.round(8 * PX_PER_CM), idH = Math.round(4.8 * PX_PER_CM);
+  const ppW = Math.round(12.5 * PX_PER_CM), ppH = Math.round(8.8 * PX_PER_CM);
+  ctx.font = "28px sans-serif"; ctx.fillStyle = "#888";
+
+  const f = slots.front, b = slots.back, p = slots.passport;
+  if (f?.corrected) {
+    ctx.drawImage(f.final || f.corrected, margin, margin, idW, idH);
+    ctx.fillText("身分證正面", margin, margin + idH + 34);
+  }
+  if (b?.corrected) {
+    const x = margin + idW + gap;
+    ctx.drawImage(b.final || b.corrected, x, margin, idW, idH);
+    ctx.fillText("身分證背面", x, margin + idH + 34);
+  }
+  if (p?.corrected) {
+    const y = margin + idH + 90, x = Math.round((A4_W - ppW) / 2);
+    ctx.drawImage(p.final || p.corrected, x, y, ppW, ppH);
+    ctx.fillText("護照內頁", x, y + ppH + 34);
+  }
+  return page;
+}
+
 /* ---------- 主元件 ---------- */
 export default function App() {
   const [slots, setSlots] = useState({});
   const [pdfMsg, setPdfMsg] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [dispMax, setDispMax] = useState(() => getDispMax(typeof window !== "undefined" ? window.innerWidth : 340));
 
   useEffect(() => {
@@ -385,39 +418,24 @@ export default function App() {
 
   const setSlotState = (key) => (next) => setSlots((prev) => ({ ...prev, [key]: next }));
 
+  const showPreview = () => {
+    const page = buildA4Canvas(slots);
+    if (!page) {
+      setPdfMsg({ ok: false, text: "請至少完成一張證件的校正" });
+      return;
+    }
+    setPdfMsg(null);
+    setPreviewUrl(page.toDataURL("image/jpeg", 0.9));
+  };
+  const closePreview = () => setPreviewUrl(null);
+
   const generatePdf = () => {
-    const ready = SLOTS.filter((c) => slots[c.key]?.corrected);
-    if (ready.length === 0) {
+    const page = buildA4Canvas(slots);
+    if (!page) {
       setPdfMsg({ ok: false, text: "請至少完成一張證件的校正" });
       return;
     }
     try {
-      const A4_W = Math.round(21 * PX_PER_CM), A4_H = Math.round(29.7 * PX_PER_CM);
-      const page = document.createElement("canvas");
-      page.width = A4_W; page.height = A4_H;
-      const ctx = page.getContext("2d");
-      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, A4_W, A4_H);
-      const margin = Math.round(1 * PX_PER_CM), gap = Math.round(0.5 * PX_PER_CM);
-      const idW = Math.round(8 * PX_PER_CM), idH = Math.round(4.8 * PX_PER_CM);
-      const ppW = Math.round(12.5 * PX_PER_CM), ppH = Math.round(8.8 * PX_PER_CM);
-      ctx.font = "28px sans-serif"; ctx.fillStyle = "#888";
-
-      const f = slots.front, b = slots.back, p = slots.passport;
-      if (f?.corrected) {
-        ctx.drawImage(f.final || f.corrected, margin, margin, idW, idH);
-        ctx.fillText("身分證正面", margin, margin + idH + 34);
-      }
-      if (b?.corrected) {
-        const x = margin + idW + gap;
-        ctx.drawImage(b.final || b.corrected, x, margin, idW, idH);
-        ctx.fillText("身分證背面", x, margin + idH + 34);
-      }
-      if (p?.corrected) {
-        const y = margin + idH + 90, x = Math.round((A4_W - ppW) / 2);
-        ctx.drawImage(p.final || p.corrected, x, y, ppW, ppH);
-        ctx.fillText("護照內頁", x, y + ppH + 34);
-      }
-
       const blob = canvasToPdfBlob(page);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -448,12 +466,20 @@ export default function App() {
         ))}
         <div style={{ border: "2px solid #22314F", padding: 16, background: "#fff", textAlign: "center" }}>
           <div style={{ fontFamily: "monospace", fontSize: 11, color: "#C0392B", marginBottom: 10 }}>A4 · 21.0 × 29.7 cm</div>
-          <button
-            style={{ width: "100%", padding: 14, fontSize: 14, letterSpacing: ".05em", fontFamily: "monospace", border: "1px solid #22314F", background: "#22314F", color: "#fff", cursor: "pointer" }}
-            onClick={generatePdf}
-          >
-            產生 A4 PDF
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              style={{ flex: 1, padding: 14, fontSize: 14, letterSpacing: ".05em", fontFamily: "monospace", border: "1px solid #22314F", background: "#fff", color: "#22314F", cursor: "pointer" }}
+              onClick={showPreview}
+            >
+              預覽排版
+            </button>
+            <button
+              style={{ flex: 1, padding: 14, fontSize: 14, letterSpacing: ".05em", fontFamily: "monospace", border: "1px solid #22314F", background: "#22314F", color: "#fff", cursor: "pointer" }}
+              onClick={generatePdf}
+            >
+              產生 A4 PDF
+            </button>
+          </div>
           {pdfMsg && (
             <div style={{ marginTop: 10, fontSize: 12, color: pdfMsg.ok ? "#3B7A57" : "#C0392B" }}>
               {pdfMsg.text}
@@ -464,6 +490,28 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {previewUrl && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget) closePreview(); }}
+          style={{ position: "fixed", inset: 0, background: "rgba(34,49,79,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+        >
+          <div style={{ background: "#fff", maxWidth: "min(700px, 92vw)", maxHeight: "90vh", display: "flex", flexDirection: "column", border: "2px solid #22314F" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid #DAD3C1", fontFamily: "'Noto Serif TC', serif", fontWeight: 700 }}>
+              <span>A4 排版預覽</span>
+              <button
+                style={{ fontFamily: "monospace", fontSize: 12, padding: "8px 14px", border: "1px solid #22314F", background: "#fff", color: "#22314F", cursor: "pointer" }}
+                onClick={closePreview}
+              >
+                關閉
+              </button>
+            </div>
+            <div style={{ overflow: "auto", padding: 16, background: "#F1EDE3", display: "flex", justifyContent: "center" }}>
+              <img src={previewUrl} alt="A4 排版預覽" style={{ maxWidth: "100%", height: "auto", boxShadow: "0 2px 10px rgba(0,0,0,0.2)" }} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
